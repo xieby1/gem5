@@ -31,3 +31,9 @@ m5out
 configs/example/memcheck.cfg
 configs/dram/lowp_sweep.cfg
 .pyenv
+tags
+.ccls
+.vimrc
+psedoImport.py
+pyrightconfig.json
+shell.nix
