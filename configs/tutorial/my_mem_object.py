@@ -30,13 +30,15 @@ system.mem_ctrl.port = system.membus.mem_side_ports
 # what it is this?
 system.system_port = system.membus.cpu_side_ports
 
-binary = '/home/xiebenyi/Codes/gem5/tests/test-progs/hello/bin/arm/linux/hello'
+thispath = os.path.dirname(os.path.realpath(__file__))
+binpath = os.path.join(thispath, '../../',
+                       'tests/test-progs/hello/bin/arm/linux/hello')
 
 # for gem5 V21 and beyond
-system.workload = SEWorkload.init_compatible(binary)
+system.workload = SEWorkload.init_compatible(binpath)
 
 process = Process()
-process.cmd = [binary]
+process.cmd = [binpath]
 system.cpu.workload = process
 system.cpu.createThreads()
 
