@@ -13,13 +13,15 @@ private:
     class CPUSidePort : public ResponsePort
     {
     private:
+        int id;
         MyCache *owner;
         bool needRetry;
         PacketPtr blockedPacket;
 
     public:
-        CPUSidePort(const std::string &name, MyCache *owner) :
+        CPUSidePort(const std::string &name, int id, MyCache *owner) :
             ResponsePort(name, owner),
+            id(id),
             owner(owner),
             needRetry(false),
             blockedPacket(nullptr)
@@ -46,7 +48,8 @@ private:
     public:
         MemSidePort(const std::string &name, MyCache *owner) :
             RequestPort(name, owner),
-            owner(owner)
+            owner(owner),
+            blockedPacket(nullptr)
         {
 
         }
@@ -60,8 +63,8 @@ private:
 
     void handleFunctional(PacketPtr pkt);
     AddrRangeList getAddrRanges() const;
-    void sendRangeChange();
-    bool handleRequest(PacketPtr pkt);
+    void sendRangeChange() const;
+    bool handleRequest(PacketPtr pkt, int port_id);
     bool handleResponse(PacketPtr pkt);
     void sendResponse(PacketPtr pkt);
     void accessTiming(PacketPtr pkt);
@@ -74,11 +77,14 @@ private:
     bool blocked;
     PacketPtr originalPacket;
     int waitingPortId;
+    std::unordered_map<Addr, uint8_t*> cacheStore;
+    bool accessFunctional(PacketPtr pkt);
+    void insert(PacketPtr pkt);
 public:
     MyCache(const MyCacheParams &params);
     Port &getPort(const std::string &if_name,
             PortID idx = InvalidPortID) override;
-}
+};
 
 }
 #endif
