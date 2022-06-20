@@ -80,6 +80,18 @@ private:
     std::unordered_map<Addr, uint8_t*> cacheStore;
     bool accessFunctional(PacketPtr pkt);
     void insert(PacketPtr pkt);
+
+    Tick missTime;
+    class MyCacheStats : public statistics::Group
+    {
+    public:
+        MyCacheStats(statistics::Group *parent);
+        statistics::Scalar hits;
+        statistics::Scalar misses;
+        statistics::Histogram missLatency;
+        statistics::Formula hitRatio;
+    } stats;
+
 public:
     MyCache(const MyCacheParams &params);
     Port &getPort(const std::string &if_name,

@@ -15,8 +15,8 @@ MyCache::MyCache(const MyCacheParams &params) :
     memPort(params.name + ".mem_side", this),
     blocked(false),
     originalPacket(nullptr),
-    waitingPortId(-1)
-    /* stats(this) */
+    waitingPortId(-1),
+    stats(this)
 {
     for (int i=0; i<params.port_cpu_side_connection_count; i++) {
         cpuPorts.emplace_back(
@@ -60,10 +60,13 @@ void MyCache::accessTiming(PacketPtr pkt) {
             hit ? "Hit" : "Miss",
             pkt->print());
     if (hit) {
+        stats.hits++;
         DDUMP(MyDbg, pkt->getConstPtr<uint8_t>(), pkt->getSize());
         pkt->makeResponse();
         sendResponse(pkt);
     } else {
+        stats.misses++;
+        missTime = curTick();
         Addr addr = pkt->getAddr();
         Addr block_addr = pkt->getBlockAddr(blockSize);
         unsigned size = pkt->getSize();
@@ -109,6 +112,7 @@ MyCache::handleResponse(PacketPtr pkt) {
     DPRINTF(MyDbg, "Got response for addr %#x\n", pkt->getAddr());
     insert(pkt);
     if (originalPacket != nullptr) {
+        stats.missLatency.sample(curTick() - missTime);
         [[maybe_unused]] bool hit = accessFunctional(originalPacket);
         panic_if(!hit, "Should always hit after inserting");
         originalPacket->makeResponse();
@@ -316,5 +320,17 @@ MyCache::handleFunctional(PacketPtr pkt)
     }
 }
 
+MyCache::MyCacheStats::MyCacheStats(statistics::Group *parent) :
+    statistics::Group(parent),
+    ADD_STAT(hits, statistics::units::Count::get(), "Number of hits"),
+    ADD_STAT(misses, statistics::units::Count::get(), "Number of misses"),
+    ADD_STAT(missLatency, statistics::units::Tick::get(),
+            "Ticks for misses to the cache"),
+    ADD_STAT(hitRatio, statistics::units::Ratio::get(),
+            "The ratio of hits to the total accesses to the cache",
+            hits / (hits + misses))
+{
+    missLatency.init(16);
+}
 
 }
