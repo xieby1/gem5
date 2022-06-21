@@ -37,3 +37,4 @@ tags
 psedoImport.py
 pyrightconfig.json
 shell.nix
+compile_commands.json
