@@ -94,7 +94,7 @@ class SimpleCore(AbstractCore):
         # controller as we require it. Not sure how true this is in all cases.
         self.core.createInterruptController()
 
-        if get_runtime_isa() == ISA.X86:
+        if get_runtime_isa() in (ISA.X86, ISA.XA64):
             if interrupt_requestor != None:
                 self.core.interrupts[0].pio = interrupt_requestor
                 self.core.interrupts[0].int_responder = interrupt_requestor

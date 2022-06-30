@@ -66,7 +66,7 @@ class AbstractL1Cache(L1Cache_Controller):
         2. The x86 mwait instruction is built on top of coherence
         3. The local exclusive monitor in ARM systems
         """
-        if core.get_type() is CPUTypes.O3 or target_isa in (ISA.X86, ISA.ARM):
+        if core.get_type() is CPUTypes.O3 or target_isa in (ISA.X86, ISA.ARM, ISA.XA64):
             return True
         return False
 

@@ -66,6 +66,11 @@ elif buildEnv['TARGET_ISA'] == 'x86':
     from m5.objects.X86LocalApic import X86LocalApic as ArchInterrupts
     from m5.objects.X86ISA import X86ISA as ArchISA
     from m5.objects.X86Decoder import X86Decoder as ArchDecoder
+elif buildEnv['TARGET_ISA'] == 'xa64':
+    from m5.objects.XA64MMU import XA64MMU as ArchMMU
+    from m5.objects.XA64LocalApic import XA64LocalApic as ArchInterrupts
+    from m5.objects.XA64ISA import XA64ISA as ArchISA
+    from m5.objects.XA64Decoder import XA64Decoder as ArchDecoder
 elif buildEnv['TARGET_ISA'] == 'mips':
     from m5.objects.MipsMMU import MipsMMU as ArchMMU
     from m5.objects.MipsInterrupts import MipsInterrupts as ArchInterrupts

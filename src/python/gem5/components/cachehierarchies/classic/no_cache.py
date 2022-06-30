@@ -107,7 +107,7 @@ class NoCache(AbstractClassicCacheHierarchy):
                 self.membus.cpu_side_ports, self.membus.cpu_side_ports
             )
 
-            if get_runtime_isa() == ISA.X86:
+            if get_runtime_isa() in (ISA.X86, ISA.XA64):
                 int_req_port = self.membus.mem_side_ports
                 int_resp_port = self.membus.cpu_side_ports
                 core.connect_interrupt(int_req_port, int_resp_port)

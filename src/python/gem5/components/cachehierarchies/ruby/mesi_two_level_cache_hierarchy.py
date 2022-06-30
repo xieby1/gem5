@@ -129,7 +129,7 @@ class MESITwoLevelCacheHierarchy(
             )
 
             # Connect the interrupt ports
-            if get_runtime_isa() == ISA.X86:
+            if get_runtime_isa() in (ISA.X86, ISA.XA64):
                 int_req_port = cache.sequencer.interrupt_out_port
                 int_resp_port = cache.sequencer.in_ports
                 core.connect_interrupt(int_req_port, int_resp_port)

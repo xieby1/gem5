@@ -129,7 +129,7 @@ class PrivateL1CacheHierarchy(AbstractClassicCacheHierarchy):
                 self.iptw_caches[i].cpu_side, self.dptw_caches[i].cpu_side
             )
 
-            if get_runtime_isa() == ISA.X86:
+            if get_runtime_isa() in (ISA.X86, ISA.XA64):
                 int_req_port = self.membus.mem_side_ports
                 int_resp_port = self.membus.cpu_side_ports
                 cpu.connect_interrupt(int_req_port, int_resp_port)

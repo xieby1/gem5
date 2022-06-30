@@ -48,6 +48,7 @@ def get_runtime_isa() -> ISA:
         "x86": ISA.X86,
         "power": ISA.POWER,
         "riscv": ISA.RISCV,
+        "xa64": ISA.XA64,
     }
 
     isa_str = str(buildEnv["TARGET_ISA"]).lower()

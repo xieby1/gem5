@@ -38,4 +38,5 @@ class ISA(Enum):
     MIPS = 4
     POWER = 5
     SPARC = 6
-    NULL = 7
+    XA64 = 7
+    NULL = 8
