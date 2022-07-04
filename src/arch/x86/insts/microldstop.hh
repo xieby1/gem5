@@ -70,8 +70,8 @@ class MemOp : public X86MicroopBase
     X86MicroopBase(mach_inst, mnem, inst_mnem, set_flags, op_class),
             memFlags(mem_flags),
             dataSize(data_size), addressSize(address_size),
-            foldOBit((dataSize == 1 && !mach_inst.rex.present) ? 1 << 6 : 0),
-            foldABit((addressSize == 1 && !mach_inst.rex.present) ? 1 << 6 : 0)
+            foldOBit((dataSize == 1 && !mach_inst.rex.present) ? 1 << 7 : 0),
+            foldABit((addressSize == 1 && !mach_inst.rex.present) ? 1 << 7 : 0)
     {}
 
   public:

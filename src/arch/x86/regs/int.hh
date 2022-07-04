@@ -152,8 +152,9 @@ namespace X86ISA
         INTREG_T0 = INTREG_MICRO_BEGIN,
         INTREG_MICRO_END = INTREG_MICRO_BEGIN + NumMicroIntRegs,
 
+        INTREG_ALU_BEGIN = INTREG_MICRO_END,
         // The lower part of the result of multiplication.
-        INTREG_PRODLOW,
+        INTREG_PRODLOW = INTREG_ALU_BEGIN,
         // The upper part of the result of multiplication.
         INTREG_PRODHI,
         // The quotient from division.
@@ -164,12 +165,13 @@ namespace X86ISA
         INTREG_DIVISOR,
         // The register to use for shift doubles.
         INTREG_DOUBLEBITS,
+        INTREG_ALU_END = INTREG_ALU_BEGIN + NumALUIntRegs,
 
-        NUM_INTREGS,
+        NUM_INTREGS = INTREG_ALU_END, // NUM_INTREGS = 32
     };
 
     // This needs to be large enough to miss all the other bits of an index.
-    static const IntRegIndex IntFoldBit = (IntRegIndex)(1 << 6);
+    static const IntRegIndex IntFoldBit = (IntRegIndex)(1 << 7);
 
     inline static IntRegIndex
     INTREG_MICRO(int index)

@@ -57,7 +57,7 @@ class RegOpBase : public X86MicroopBase
             uint16_t _ext) :
         X86MicroopBase(mach_inst, mnem, inst_mnem, set_flags, op_class),
         ext(_ext), dataSize(data_size),
-        foldOBit((data_size == 1 && !mach_inst.rex.present) ? 1 << 6 : 0)
+        foldOBit((data_size == 1 && !mach_inst.rex.present) ? 1 << 7 : 0)
     {}
 
     //Figure out what the condition code flags should be.

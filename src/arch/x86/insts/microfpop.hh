@@ -57,7 +57,7 @@ class FpOp : public X86MicroopBase
             uint8_t data_size, int8_t _spm) :
         X86MicroopBase(mach_inst, mnem, inst_mnem, set_flags, op_class),
         spm(_spm), dataSize(data_size),
-        foldOBit((data_size == 1 && !mach_inst.rex.present) ? 1 << 6 : 0)
+        foldOBit((data_size == 1 && !mach_inst.rex.present) ? 1 << 7 : 0)
     {}
 
   public:

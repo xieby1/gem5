@@ -47,7 +47,8 @@ namespace gem5
 
 namespace X86ISA
 {
-    const int NumMicroIntRegs = 16;
+    const int NumMicroIntRegs = 10;
+    const int NumALUIntRegs = 6;
 
     const int NumMMXRegs = 8;
     const int NumXMMRegs = 16;
