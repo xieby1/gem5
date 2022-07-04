@@ -72,7 +72,7 @@ def macroop MOV_R_P {
 };
 
 def macroop MOV_R_I {
-    limm reg, imm
+    xamovi reg, imm
 };
 
 def macroop MOV_M_I {

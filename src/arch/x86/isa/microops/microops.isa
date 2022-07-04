@@ -44,6 +44,7 @@
 
 //Load immediate microop definition
 ##include "limmop.isa"
+##include "xamoviop.isa"
 
 //Load/store microop definitions
 ##include "ldstop.isa"
