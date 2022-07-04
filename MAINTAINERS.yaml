@@ -95,6 +95,11 @@ arch-x86:
   maintainers:
     - Gabe Black <gabe.black@gmail.com>
 
+arch-xa64:
+  status: maintained
+  maintainers:
+    - Xie Benyi <xieby1@outlook.com>
+
 base:
   status: maintained
   maintainers:
