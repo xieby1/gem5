@@ -196,6 +196,11 @@ def config_cache(options, system):
         else:
             system.cpu[i].connectBus(system.membus)
 
+        if options.cpu_type == "O3CPU":
+            system.cpu[i].ucache_adapter = MicroCacheAdapter()
+            system.cpu[i].ucache_port =
+                system.cpu[i].ucache_adapter.cpu_side_port
+
     return system
 
 # ExternalSlave provides a "port", but when that port connects to a cache,

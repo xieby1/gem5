@@ -102,6 +102,17 @@ class Fetch
         virtual void recvReqRetry();
     };
 
+    /**
+     * UcachePort class for micro instruction fetch.
+     */
+    class UcachePort : public IcachePort
+    {
+      public:
+        UcachePort(Fetch *_fetch, CPU *_cpu) :
+            IcachePort(_fetch, _cpu)
+        {}
+    };
+
     class FetchTranslation : public BaseMMU::Translation
     {
       protected:
@@ -360,6 +371,8 @@ class Fetch
 
     RequestPort &getInstPort() { return icachePort; }
 
+    RequestPort &getMicroInstPort() { return ucachePort; }
+
   private:
     DynInstPtr buildInst(ThreadID tid, StaticInstPtr staticInst,
             StaticInstPtr curMacroop, const PCStateBase &this_pc,
@@ -521,6 +534,8 @@ class Fetch
 
     /** Instruction port. Note that it has to appear after the fetch stage. */
     IcachePort icachePort;
+
+    UcachePort ucachePort;
 
     /** Set to true if a pipelined I-cache request should be issued. */
     bool issuePipelinedIfetch[MaxThreads];

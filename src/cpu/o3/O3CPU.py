@@ -44,6 +44,7 @@ from m5.objects.BaseCPU import BaseCPU
 from m5.objects.FUPool import *
 from m5.objects.O3Checker import O3Checker
 from m5.objects.BranchPredictor import *
+from m5.objects.MicroCacheAdapter import MicroCacheAdapter
 
 class SMTFetchPolicy(ScopedEnum):
     vals = [ 'RoundRobin', 'Branch', 'IQCount', 'LSQCount' ]
@@ -77,6 +78,8 @@ class O3CPU(BaseCPU):
           "Constrains stores only.")
     cacheLoadPorts = Param.Unsigned(200, "Cache Ports. "
           "Constrains loads only.")
+
+    ucache_port = RequestPort("Micro Instruction Port")
 
     decodeToFetchDelay = Param.Cycles(1, "Decode to fetch delay")
     renameToFetchDelay = Param.Cycles(1 ,"Rename to fetch delay")

@@ -624,6 +624,15 @@ class CPU : public BaseCPU
         return iew.ldstQueue.getDataPort();
     }
 
+    Port &
+    getPort(const std::string &if_name, PortID idx) override
+    {
+        if (if_name == "ucache_port")
+            return fetch.getMicroInstPort();
+        else
+            return BaseCPU::getPort(if_name, idx);
+    }
+
     struct CPUStats : public statistics::Group
     {
         CPUStats(CPU *cpu);

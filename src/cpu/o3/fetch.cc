@@ -100,6 +100,7 @@ Fetch::Fetch(CPU *_cpu, const O3CPUParams &params)
       numThreads(params.numThreads),
       numFetchingThreads(params.smtNumFetchingThreads),
       icachePort(this, _cpu),
+      ucachePort(this, _cpu),
       finishTranslationEvent(this), fetchStats(_cpu, this)
 {
     if (numThreads > MaxThreads)
@@ -1132,6 +1133,18 @@ Fetch::fetch(bool &status_change)
         fetchStatus[tid] = Running;
         status_change = true;
     } else if (fetchStatus[tid] == Running) {
+        {
+            RequestPtr uinst_req = std::make_shared<Request>(
+                fetchAddr, 15/*x86 max inst length*/,
+                Request::UNCACHEABLE, cpu->instRequestorId(),
+                this_pc.instAddr(), cpu->thread[tid]->contextId()
+            );
+            PacketPtr pkt = new Packet(uinst_req, MemCmd::ReadReq);
+            pkt->dataDynamic(new uint8_t[15]);
+            memcpy(pkt->getPtr<Addr>(), &fetchAddr, sizeof(Addr));
+            ucachePort.sendFunctional(pkt);
+        }
+
         // Align the fetch PC so its at the start of a fetch buffer segment.
         Addr fetchBufferBlockPC = fetchBufferAlignPC(fetchAddr);
 
