@@ -40,10 +40,8 @@ MicroCacheAdapter::CPUSidePort::trySendRetry()
 void
 MicroCacheAdapter::CPUSidePort::recvFunctional(PacketPtr pkt)
 {
-    // TODOL getAddr assert VALID_ADDR failed
-    Addr addr = *(pkt->getConstPtr<Addr>());
-    std::cout << std::hex << addr;
-    std::cout << std::endl;
+    // TODO: DPRINTF
+    std::cout << "0x" << std::hex << pkt->getAddr() << std::endl;
 }
 
 bool

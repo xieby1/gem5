@@ -80,6 +80,9 @@ Fetch::IcachePort::IcachePort(Fetch *_fetch, CPU *_cpu) :
         RequestPort(_cpu->name() + ".icache_port", _cpu), fetch(_fetch)
 {}
 
+Fetch::UcachePort::UcachePort(Fetch *_fetch, CPU *_cpu) :
+        RequestPort(_cpu->name() + ".ucache_port", _cpu), fetch(_fetch)
+{}
 
 Fetch::Fetch(CPU *_cpu, const O3CPUParams &params)
     : fetchPolicy(params.smtFetchPolicy),
@@ -101,6 +104,7 @@ Fetch::Fetch(CPU *_cpu, const O3CPUParams &params)
       numFetchingThreads(params.smtNumFetchingThreads),
       icachePort(this, _cpu),
       ucachePort(this, _cpu),
+      uopMiss(false),
       finishTranslationEvent(this), fetchStats(_cpu, this)
 {
     if (numThreads > MaxThreads)
@@ -131,6 +135,7 @@ Fetch::Fetch(CPU *_cpu, const O3CPUParams &params)
         fetchBufferPC[i] = 0;
         fetchBufferValid[i] = false;
         lastIcacheStall[i] = 0;
+        lastUcacheStall[i] = 0;
         issuePipelinedIfetch[i] = false;
     }
 
@@ -162,6 +167,8 @@ Fetch::FetchStatGroup::FetchStatGroup(CPU *cpu, Fetch *fetch)
     : statistics::Group(cpu, "fetch"),
     ADD_STAT(icacheStallCycles, statistics::units::Cycle::get(),
              "Number of cycles fetch is stalled on an Icache miss"),
+    ADD_STAT(ucacheStallCycles, statistics::units::Cycle::get(),
+             "Number of cycles fetch is stalled on an Ucache miss"),
     ADD_STAT(insts, statistics::units::Count::get(),
              "Number of instructions fetch has processed"),
     ADD_STAT(branches, statistics::units::Count::get(),
@@ -192,10 +199,14 @@ Fetch::FetchStatGroup::FetchStatGroup(CPU *cpu, Fetch *fetch)
              "Number of stall cycles due to pending quiesce instructions"),
     ADD_STAT(icacheWaitRetryStallCycles, statistics::units::Cycle::get(),
              "Number of stall cycles due to full MSHR"),
+    ADD_STAT(ucacheWaitRetryStallCycles, statistics::units::Cycle::get(),
+             "Number of stall cycles due to full ucahce MSHR"),
     ADD_STAT(cacheLines, statistics::units::Count::get(),
              "Number of cache lines fetched"),
     ADD_STAT(icacheSquashes, statistics::units::Count::get(),
              "Number of outstanding Icache misses that were squashed"),
+    ADD_STAT(ucacheSquashes, statistics::units::Count::get(),
+             "Number of outstanding Ucache misses that were squashed"),
     ADD_STAT(tlbSquashes, statistics::units::Count::get(),
              "Number of outstanding ITLB misses that were squashed"),
     ADD_STAT(nisnDist, statistics::units::Count::get(),
@@ -213,6 +224,8 @@ Fetch::FetchStatGroup::FetchStatGroup(CPU *cpu, Fetch *fetch)
 {
         icacheStallCycles
             .prereq(icacheStallCycles);
+        ucacheStallCycles
+            .prereq(ucacheStallCycles);
         insts
             .prereq(insts);
         branches
@@ -243,8 +256,12 @@ Fetch::FetchStatGroup::FetchStatGroup(CPU *cpu, Fetch *fetch)
             .prereq(pendingQuiesceStallCycles);
         icacheWaitRetryStallCycles
             .prereq(icacheWaitRetryStallCycles);
+        ucacheWaitRetryStallCycles
+            .prereq(ucacheWaitRetryStallCycles);
         icacheSquashes
             .prereq(icacheSquashes);
+        ucacheSquashes
+            .prereq(ucacheSquashes);
         tlbSquashes
             .prereq(tlbSquashes);
         nisnDist
@@ -600,6 +617,30 @@ Fetch::fetchCacheLine(Addr vaddr, ThreadID tid, Addr pc)
     return true;
 }
 
+// TODO: change functional to timing version
+bool
+Fetch::fetchUCacheLine(ThreadID tid, Addr pc)
+{
+    Fault fault = NoFault;
+    assert(!cpu->switchedOut());
+    DPRINTF(Fetch, "[tid:%i] Fetching ucache for pc %#x\n", tid, pc);
+
+    // Setup the a dummy memReq.
+    RequestPtr mem_req = std::make_shared<Request>(
+            pc, 4, Request::INST_FETCH, cpu->instRequestorId(),
+            pc, cpu->thread[tid]->contextId()
+    );
+    mem_req->taskId(cpu->taskId());
+    memReq[tid] = mem_req;
+
+    fetchStatus[tid] = ItlbWait;
+    UFetchTranslation *trans = new UFetchTranslation(this);
+    cpu->mmu->translateTiming(mem_req, cpu->thread[tid]->getTC(),
+            trans, BaseMMU::Execute);
+
+    return true;
+}
+
 void
 Fetch::finishTranslation(const Fault &fault, const RequestPtr &mem_req)
 {
@@ -708,6 +749,36 @@ Fetch::finishTranslation(const Fault &fault, const RequestPtr &mem_req)
 }
 
 void
+Fetch::finishUTranslation(const Fault &fault, const RequestPtr &mem_req)
+{
+    ThreadID tid = cpu->contextToThread(mem_req->contextId());
+
+    assert(!cpu->switchedOut());
+    cpu->wakeCPU();
+
+    if (fetchStatus[tid] != ItlbWait || mem_req != memReq[tid] ||
+        mem_req->getVaddr() != memReq[tid]->getVaddr()) {
+        DPRINTF(Fetch, "[tid:%i] Ignoring itlb completed after squash\n",
+                tid);
+        ++fetchStats.tlbSquashes;
+        return;
+    }
+
+    // If translation was successful, attempt to read the ucache block.
+    if (fault == NoFault) {
+        PacketPtr data_pkt = new Packet(mem_req, MemCmd::ReadReq);
+        // TODO: This is a dummy dynamic data allocation, only to suppress
+        // gem5::Packet::getPtr() assertion failure.
+        data_pkt->dataDynamic(new uint8_t[fetchBufferSize]);
+
+        DPRINTF(Fetch, "Fetch: Doing micro instruction read.\n");
+        ucachePort.sendFunctional(data_pkt);
+    }
+    fetchStatus[tid] = Running;
+    uopMiss = true;
+}
+
+void
 Fetch::doSquash(const PCStateBase &new_pc, const DynInstPtr squashInst,
         ThreadID tid)
 {
@@ -727,6 +798,9 @@ Fetch::doSquash(const PCStateBase &new_pc, const DynInstPtr squashInst,
         DPRINTF(Fetch, "[tid:%i] Squashing outstanding Icache miss.\n",
                 tid);
         memReq[tid] = NULL;
+    } else if (fetchStatus[tid] == UcacheWaitResponse) {
+        DPRINTF(Fetch, "[tid:%i] Squashing outstanding Ucache miss.\n",
+                tid);
     } else if (fetchStatus[tid] == ItlbWait) {
         DPRINTF(Fetch, "[tid:%i] Squashing outstanding ITLB miss.\n",
                 tid);
@@ -754,6 +828,8 @@ Fetch::doSquash(const PCStateBase &new_pc, const DynInstPtr squashInst,
     // interrupts are not handled when they cannot be, though
     // some opportunities to handle interrupts may be missed.
     delayedCommit[tid] = true;
+
+    uopMiss = false;
 
     ++fetchStats.squashCycles;
 }
@@ -797,7 +873,8 @@ Fetch::updateFetchStatus()
 
         if (fetchStatus[tid] == Running ||
             fetchStatus[tid] == Squashing ||
-            fetchStatus[tid] == IcacheAccessComplete) {
+            fetchStatus[tid] == IcacheAccessComplete ||
+            fetchStatus[tid] == UcacheAccessComplete) {
 
             if (_status == Inactive) {
                 DPRINTF(Activity, "[tid:%i] Activating stage.\n",tid);
@@ -805,6 +882,11 @@ Fetch::updateFetchStatus()
                 if (fetchStatus[tid] == IcacheAccessComplete) {
                     DPRINTF(Activity, "[tid:%i] Activating fetch due to cache"
                             "completion\n",tid);
+                }
+
+                if (fetchStatus[tid] == UcacheAccessComplete) {
+                    DPRINTF(Activity, "[tid:%i] Activating fetch due to"
+                            "ucache completion\n",tid);
                 }
 
                 cpu->activateStage(CPU::FetchIdx);
@@ -1132,17 +1214,23 @@ Fetch::fetch(bool &status_change)
 
         fetchStatus[tid] = Running;
         status_change = true;
+        uopMiss = false;
+    } else if (fetchStatus[tid] == UcacheAccessComplete) {
+        DPRINTF(Fetch, "[tid:%i] Ucache miss is complete.\n", tid);
+
+        fetchStatus[tid] = Running;
+        status_change = true;
     } else if (fetchStatus[tid] == Running) {
-        {
-            RequestPtr uinst_req = std::make_shared<Request>(
-                fetchAddr, 15/*x86 max inst length*/,
-                Request::UNCACHEABLE, cpu->instRequestorId(),
-                this_pc.instAddr(), cpu->thread[tid]->contextId()
-            );
-            PacketPtr pkt = new Packet(uinst_req, MemCmd::ReadReq);
-            pkt->dataDynamic(new uint8_t[15]);
-            memcpy(pkt->getPtr<Addr>(), &fetchAddr, sizeof(Addr));
-            ucachePort.sendFunctional(pkt);
+        if (!uopMiss){ // fetch ucache
+            fetchUCacheLine(tid, this_pc.instAddr());
+
+            if (fetchStatus[tid] == UcacheWaitResponse)
+                ++fetchStats.ucacheStallCycles;
+            else if (fetchStatus[tid] == ItlbWait)
+                ++fetchStats.tlbCycles;
+            else
+                ++fetchStats.miscStallCycles;
+            return;
         }
 
         // Align the fetch PC so its at the start of a fetch buffer segment.
@@ -1631,6 +1719,25 @@ void
 Fetch::IcachePort::recvReqRetry()
 {
     fetch->recvReqRetry();
+}
+
+bool
+Fetch::UcachePort::recvTimingResp(PacketPtr pkt)
+{
+    DPRINTF(O3CPU, "Micro Fetch unit received timing\n");
+    assert(pkt->req->isUncacheable() ||
+           !(pkt->cacheResponding() && !pkt->hasSharers()));
+    // TODO:
+    /* fetch->processUCacheCompletion(pkt); */
+
+    return true;
+}
+
+void
+Fetch::UcachePort::recvReqRetry()
+{
+    // TODO:
+    /* fetch->recvUReqRetry(); */
 }
 
 } // namespace o3

@@ -105,12 +105,15 @@ class Fetch
     /**
      * UcachePort class for micro instruction fetch.
      */
-    class UcachePort : public IcachePort
+    class UcachePort : public RequestPort
     {
+      protected:
+        Fetch *fetch;
       public:
-        UcachePort(Fetch *_fetch, CPU *_cpu) :
-            IcachePort(_fetch, _cpu)
-        {}
+        UcachePort(Fetch *_fetch, CPU *_cpu);
+      protected:
+        virtual bool recvTimingResp(PacketPtr pkt);
+        virtual void recvReqRetry();
     };
 
     class FetchTranslation : public BaseMMU::Translation
@@ -129,6 +132,23 @@ class Fetch
         {
             assert(mode == BaseMMU::Execute);
             fetch->finishTranslation(fault, req);
+            delete this;
+        }
+    };
+
+    class UFetchTranslation : public BaseMMU::Translation
+    {
+      protected:
+        Fetch *fetch;
+      public:
+        UFetchTranslation(Fetch *_fetch) : fetch(_fetch) {}
+        void markDelayed() {}
+        void
+        finish(const Fault &fault, const RequestPtr &req,
+                gem5::ThreadContext *tc, BaseMMU::Mode mode)
+        {
+            assert(mode == BaseMMU::Execute);
+            fetch->finishUTranslation(fault, req);
             delete this;
         }
     };
@@ -166,6 +186,35 @@ class Fetch
             return "CPU FetchFinishTranslation";
         }
       };
+    class FinishUTranslationEvent : public Event
+    {
+      private:
+        Fetch *fetch;
+        Fault fault;
+        RequestPtr req;
+
+      public:
+        FinishUTranslationEvent(Fetch *_fetch)
+            : fetch(_fetch), req(nullptr)
+        {}
+
+        void setFault(Fault _fault) { fault = _fault; }
+        void setReq(const RequestPtr &_req) { req = _req; }
+
+        /** Process the delayed finish translation */
+        void
+        process()
+        {
+            assert(fetch->numInst < fetch->fetchWidth);
+            fetch->finishUTranslation(fault, req);
+        }
+
+        const char *
+        description() const
+        {
+            return "CPU FetchFinishTranslation";
+        }
+      };
 
   public:
     /** Overall fetch status. Used to determine if the CPU can
@@ -191,6 +240,9 @@ class Fetch
         IcacheWaitResponse,
         IcacheWaitRetry,
         IcacheAccessComplete,
+        UcacheWaitResponse,
+        UcacheWaitRetry,
+        UcacheAccessComplete,
         NoGoodAddr
     };
 
@@ -240,9 +292,11 @@ class Fetch
 
     /** Handles retrying the fetch access. */
     void recvReqRetry();
+    void recvUReqRetry();
 
     /** Processes cache completion event. */
     void processCacheCompletion(PacketPtr pkt);
+    void processUCacheCompletion(PacketPtr pkt);
 
     /** Resume after a drain. */
     void drainResume();
@@ -310,6 +364,8 @@ class Fetch
      */
     bool fetchCacheLine(Addr vaddr, ThreadID tid, Addr pc);
     void finishTranslation(const Fault &fault, const RequestPtr &mem_req);
+    bool fetchUCacheLine(ThreadID tid, Addr pc);
+    void finishUTranslation(const Fault &fault, const RequestPtr &mem_req);
 
 
     /** Check if an interrupt is pending and that we need to handle
@@ -396,6 +452,7 @@ class Fetch
 
     /** Pipeline the next I-cache access to the current one. */
     void pipelineIcacheAccesses(ThreadID tid);
+    void pipelineUcacheAccesses(ThreadID tid);
 
     /** Profile the reasons of fetch stall. */
     void profileStall(ThreadID tid);
@@ -476,6 +533,7 @@ class Fetch
 
     /** Is the cache blocked?  If so no threads can access it. */
     bool cacheBlocked;
+    bool ucacheBlocked;
 
     /** The packet that is waiting to be retried. */
     PacketPtr retryPkt;
@@ -485,26 +543,32 @@ class Fetch
 
     /** Cache block size. */
     unsigned int cacheBlkSize;
+    unsigned int ucacheBlkSize;
 
     /** The size of the fetch buffer in bytes. The fetch buffer
      *  itself may be smaller than a cache line.
      */
     unsigned fetchBufferSize;
+    unsigned ufetchBufferSize;
 
     /** Mask to align a fetch address to a fetch buffer boundary. */
     Addr fetchBufferMask;
+    Addr ufetchBufferMask;
 
     /** The fetch data that is being fetched and buffered. */
     uint8_t *fetchBuffer[MaxThreads];
+    uint8_t *ufetchBuffer[MaxThreads];
 
     /** The PC of the first instruction loaded into the fetch buffer. */
     Addr fetchBufferPC[MaxThreads];
+    Addr ufetchBufferPC[MaxThreads];
 
     /** The size of the fetch queue in micro-ops */
     unsigned fetchQueueSize;
 
     /** Queue of fetched instructions. Per-thread to prevent HoL blocking. */
     std::deque<DynInstPtr> fetchQueue[MaxThreads];
+    std::deque<DynInstPtr> ufetchQueue[MaxThreads];
 
     /** Whether or not the fetch buffer data is valid. */
     bool fetchBufferValid[MaxThreads];
@@ -514,6 +578,7 @@ class Fetch
 
     /** Icache stall statistics. */
     Counter lastIcacheStall[MaxThreads];
+    Counter lastUcacheStall[MaxThreads];
 
     /** List of Active Threads */
     std::list<ThreadID> *activeThreads;
@@ -537,6 +602,11 @@ class Fetch
 
     UcachePort ucachePort;
 
+    // TODO:
+    // This variable (status) shows whether uop misses.
+    // Uop miss means macroop hasn't been translated.
+    bool uopMiss;
+
     /** Set to true if a pipelined I-cache request should be issued. */
     bool issuePipelinedIfetch[MaxThreads];
 
@@ -551,6 +621,7 @@ class Fetch
         // vectors and tracking on a per thread basis.
         /** Stat for total number of cycles stalled due to an icache miss. */
         statistics::Scalar icacheStallCycles;
+        statistics::Scalar ucacheStallCycles;
         /** Stat for total number of fetched instructions. */
         statistics::Scalar insts;
         /** Total number of fetched branches. */
@@ -583,12 +654,15 @@ class Fetch
         statistics::Scalar pendingQuiesceStallCycles;
         /** Total number of stall cycles caused by I-cache wait retrys. */
         statistics::Scalar icacheWaitRetryStallCycles;
+        statistics::Scalar ucacheWaitRetryStallCycles;
         /** Stat for total number of fetched cache lines. */
         statistics::Scalar cacheLines;
+        statistics::Scalar ucacheLines;
         /** Total number of outstanding icache accesses that were dropped
          * due to a squash.
          */
         statistics::Scalar icacheSquashes;
+        statistics::Scalar ucacheSquashes;
         /** Total number of outstanding tlb accesses that were dropped
          * due to a squash.
          */
