@@ -198,7 +198,7 @@ def config_cache(options, system):
 
         if options.cpu_type == "O3CPU":
             system.cpu[i].ucache_adapter = MicroCacheAdapter()
-            system.cpu[i].ucache_port =
+            system.cpu[i].ucache_port = \
                 system.cpu[i].ucache_adapter.cpu_side_port
 
     return system
