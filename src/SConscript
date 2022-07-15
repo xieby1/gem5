@@ -64,6 +64,9 @@ Import('*')
 # Children need to see the environment
 Export('env')
 
+# Generate compile_commands.json for language servers
+env.CompilationDatabase('compile_commands.json')
+
 build_env = [(opt, env[opt]) for opt in export_vars]
 
 from code_formatter import code_formatter
