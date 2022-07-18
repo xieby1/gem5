@@ -1,0 +1,76 @@
+##include "includes.isa"
+
+// Include microops' cpp definition,
+/// After including, microop class constructor is callable in
+/// xa64/decode-method.cc.inc.
+output header {{
+namespace gem5 {
+namespace X86ISAInst {
+#include "../decoder-ns.hh.inc"
+} //namespace X86ISAInst
+} //namespace gem5
+}};
+
+
+namespace XA64ISA;
+
+##include "operands.isa"
+##include "microops/base.isa"
+##include "microops/xamoviop_cls.isa"
+
+// bitfield
+// E.g. after isa parsing, EX will be a cpp macro, expanding to machInst.ex
+def bitfield EX ex;
+def bitfield SZ sz;
+
+def bitfield OPC4 opc4;
+def bitfield OPC3 opc3;
+def bitfield OPC2 opc2;
+def bitfield OPC1 opc1;
+def bitfield OPC0 opc0;
+
+def bitfield OPR3 opr3;
+def bitfield OPR2 opr2;
+def bitfield OPR1 opr1;
+def bitfield OPR0 opr0;
+
+let {{
+    def handle_OPR_prefix(arg):
+        if isinstance(arg, str) and arg.startswith("GPR_"):
+            return "X86ISA::GpRegIndex(" + arg[len("GPR_"):] + ")"
+        else:
+            return arg
+}};
+// format
+def format Unknown() {{
+    decode_block = '{\n'
+    decode_block += 'using namespace X86ISAInst;\n'
+    decode_block += 'X86ISA::ExtMachInst macroMachInst;\n'
+    decode_block += 'macroMachInst.reset();\n'
+    decode_block += 'return new Unknown(macroMachInst);\n'
+    decode_block += '}'
+
+}};
+def format MicroInst(*args) {{
+    microopClass = microopClasses[name]
+    args = tuple(map(handle_OPR_prefix, args))
+    microop = microopClass(*args)
+    decode_block = "{\n"
+    decode_block += 'const char *macrocodeBlock = "DUMMY_FROM_UCACHE";\n'
+    decode_block += 'X86ISA::ExtMachInst macroMachInst;\n'
+    decode_block += 'macroMachInst.reset();\n'
+    decode_block += 'using namespace X86ISAInst;\n'
+    decode_block += "return "
+    decode_block += microop.getAllocator(["IsMicroop"], "macroMachInst")
+    decode_block += ";}"
+    header_output = ''
+}};
+
+decode OPC4 default Unknown::unknown() {
+    0: decode OPC3 {
+        0: decode OPC2 {
+            // 0xa: MicroInst::xamovi(GPR_OPR0, OPR1, 64);
+            'XA64ISA::opc2_mov_i': MicroInst::xamovi(GPR_OPR0, OPR1, 64);
+        }
+    }
+}

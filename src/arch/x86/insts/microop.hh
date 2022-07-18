@@ -40,6 +40,7 @@
 
 #include "arch/x86/insts/static_inst.hh"
 #include "arch/x86/pcstate.hh"
+#include "arch/x86/udencoder.hh"
 #include "base/compiler.hh"
 
 namespace gem5
@@ -158,6 +159,15 @@ class X86MicroopBase : public X86StaticInst
 
     // Explicitly import the otherwise hidden branchTarget.
     using StaticInst::branchTarget;
+
+    // Decode microop binary, generate a x86 microop instance.
+    // The microop instance is derived class of X86MicroopBase.
+    static StaticInstPtr decode(XA64ISA::ExtMachInst xa64mi);
+    // Encode a x86 microop instance to binary.
+    /// It seems we dont need encode microop to binary
+    /// Encoding microop only happens in
+    /// online(dynamic)/offline(static) binary translator.
+    /* virtual XA64ISA::ExtMachInst encode() = 0; */
 };
 
 class MicroCondBase : public X86MicroopBase

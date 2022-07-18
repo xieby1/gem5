@@ -39,6 +39,8 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
+##include "xamoviop_cls.isa"
+
 def template MicroXamoviOpExecute {{
     Fault
     %(class_name)s::execute(ExecContext *xc,
@@ -72,34 +74,6 @@ def template MicroXamoviOpDeclare {{
 
         Fault execute(ExecContext *, Trace::InstRecord *) const override;
     };
-}};
-
-let {{
-    class XamoviOp(X86Microop):
-        def __init__(self, dest, imm, dataSize="env.dataSize"):
-            self.className = "Xamovi"
-            self.mnemonic = "xamovi"
-            self.dest = dest
-            if isinstance(imm, int):
-                imm = "%dULL" % imm
-            self.imm = imm
-            self.dataSize = dataSize
-
-        def getAllocator(self, microFlags):
-            allocString = '''
-                (StaticInstPtr)(new %(class_name)s(machInst,
-                    macrocodeBlock, %(flags)s, %(dest)s, %(imm)s,
-                    %(dataSize)s))
-            '''
-            allocator = allocString % {
-                "class_name" : self.className,
-                "mnemonic" : self.mnemonic,
-                "flags" : self.microFlagsText(microFlags),
-                "dest" : self.dest, "imm" : self.imm,
-                "dataSize" : self.dataSize}
-            return allocator
-
-    microopClasses["xamovi"] = XamoviOp
 }};
 
 let {{

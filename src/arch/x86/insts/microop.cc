@@ -134,5 +134,12 @@ X86MicroopBase::branchTarget(const PCStateBase &branch_pc) const
     return std::unique_ptr<PCStateBase>{pcs};
 }
 
+StaticInstPtr
+X86MicroopBase::decode(XA64ISA::ExtMachInst xa64mi)
+{
+    panic("TODO:");
+}
+
+
 } // namespace X86ISA
 } // namespace gem5

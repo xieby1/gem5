@@ -308,3 +308,6 @@ for f in isa_desc_files:
     # Add in python file dependencies that won't be caught otherwise
     for pyfile in python_files:
         env.Depends(f, "isa/insts/%s" % pyfile)
+
+isa_desc_files = ISADesc('isa/udecoder.isa', tags='x86 isa', \
+    dir='generated/xa64')
